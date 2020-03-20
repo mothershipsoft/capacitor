@@ -39,11 +39,22 @@ export class FilesystemPluginElectron extends WebPlugin implements FilesystemPlu
     this.Path = path;
   }
 
+  private _getPath(reject: (error: string) => void, path: string, directory?: string): string {
+	if (path.search(/^file:\/{2,3}/ig) >= 0 || directory === undefined) { // Is a file:// path or no directory present
+		return path;
+	}
+	else {// Not a file:// path
+		if (Object.keys(this.fileLocations).indexOf(directory) === -1) {
+			reject(`${directory} is currently not supported in the Electron implementation.`);
+		}
+		return this.fileLocations[directory] + path;
+	}
+  }
+
   readFile(options: FileReadOptions): Promise<FileReadResult> {
     return new Promise<FileReadResult>((resolve, reject) => {
-      if (Object.keys(this.fileLocations).indexOf(options.directory) === -1)
-        reject(`${options.directory} is currently not supported in the Electron implementation.`);
-      let lookupPath = this.fileLocations[options.directory] + options.path;
+	  let lookupPath = this._getPath(reject, options.path, options.directory);
+
       this.NodeFS.readFile(lookupPath, options.encoding || 'binary', (err: any, data: any) => {
         if (err) {
           reject(err);
@@ -57,9 +68,7 @@ export class FilesystemPluginElectron extends WebPlugin implements FilesystemPlu
 
   writeFile(options: FileWriteOptions): Promise<FileWriteResult> {
     return new Promise((resolve, reject) => {
-      if (Object.keys(this.fileLocations).indexOf(options.directory) === -1)
-        reject(`${options.directory} is currently not supported in the Electron implementation.`);
-      let lookupPath = this.fileLocations[options.directory] + options.path;
+	  let lookupPath = this._getPath(reject, options.path, options.directory);
       let data: (Buffer | string) = options.data;
       if (!options.encoding) {
         const base64Data = options.data.indexOf(',') >= 0 ? options.data.split(',')[1] : options.data;
@@ -86,9 +95,7 @@ export class FilesystemPluginElectron extends WebPlugin implements FilesystemPlu
 
   appendFile(options: FileAppendOptions): Promise<FileAppendResult> {
     return new Promise((resolve, reject) => {
-      if(Object.keys(this.fileLocations).indexOf(options.directory) === -1)
-        reject(`${options.directory} is currently not supported in the Electron implementation.`);
-      let lookupPath = this.fileLocations[options.directory] + options.path;
+	  let lookupPath = this._getPath(reject, options.path, options.directory);
       let data: (Buffer | string) = options.data;
       if (!options.encoding) {
         const base64Data = options.data.indexOf(',') >= 0 ? options.data.split(',')[1] : options.data;
@@ -107,9 +114,7 @@ export class FilesystemPluginElectron extends WebPlugin implements FilesystemPlu
 
   deleteFile(options: FileDeleteOptions): Promise<FileDeleteResult> {
     return new Promise((resolve, reject) => {
-      if(Object.keys(this.fileLocations).indexOf(options.directory) === -1)
-        reject(`${options.directory} directory is currently not supported in the Electron implementation.`);
-      let lookupPath = this.fileLocations[options.directory] + options.path;
+	  let lookupPath = this._getPath(reject, options.path, options.directory);
       this.NodeFS.unlink(lookupPath, (err:any) => {
         if(err) {
           reject(err);
@@ -123,9 +128,7 @@ export class FilesystemPluginElectron extends WebPlugin implements FilesystemPlu
 
   mkdir(options: MkdirOptions): Promise<MkdirResult> {
     return new Promise((resolve, reject) => {
-      if(Object.keys(this.fileLocations).indexOf(options.directory) === -1)
-        reject(`${options.directory} is currently not supported in the Electron implementation.`);
-      let lookupPath = this.fileLocations[options.directory] + options.path;
+	  let lookupPath = this._getPath(reject, options.path, options.directory);
       const doRecursive = options.recursive;
       this.NodeFS.mkdir(lookupPath, { recursive: doRecursive }, (err:any) => {
         if(err) {
@@ -155,7 +158,7 @@ export class FilesystemPluginElectron extends WebPlugin implements FilesystemPlu
 
               if (!readDirResult.files.length) {
                 return new Promise((resolve, reject) => {
-                  let lookupPath = this.fileLocations[directory] + path;
+				  let lookupPath = this._getPath(reject, path, directory);
 
                   this.NodeFS.rmdir(lookupPath, (err: any) => {
                     if (err) {
@@ -183,9 +186,7 @@ export class FilesystemPluginElectron extends WebPlugin implements FilesystemPlu
 
   readdir(options: ReaddirOptions): Promise<ReaddirResult> {
     return new Promise((resolve, reject) => {
-      if(Object.keys(this.fileLocations).indexOf(options.directory) === -1)
-        reject(`${options.directory} is currently not supported in the Electron implementation.`);
-      let lookupPath = this.fileLocations[options.directory] + options.path;
+	  let lookupPath = this._getPath(reject, options.path, options.directory);
       this.NodeFS.readdir(lookupPath, (err:any, files: string[]) => {
         if (err) {
           reject(err);
@@ -199,18 +200,14 @@ export class FilesystemPluginElectron extends WebPlugin implements FilesystemPlu
 
   getUri(options: GetUriOptions): Promise<GetUriResult> {
     return new Promise((resolve, reject) => {
-      if(Object.keys(this.fileLocations).indexOf(options.directory) === -1)
-        reject(`${options.directory} directory is currently not supported in the Electron implementation.`);
-      let lookupPath = this.fileLocations[options.directory] + options.path;
+	  let lookupPath = this._getPath(reject, options.path, options.directory);
       resolve({uri: lookupPath});
     });
   };
 
   stat(options: StatOptions): Promise<StatResult> {
     return new Promise((resolve, reject) => {
-      if(Object.keys(this.fileLocations).indexOf(options.directory) === -1)
-        reject(`${options.directory} is currently not supported in the Electron implementation.`);
-      let lookupPath = this.fileLocations[options.directory] + options.path;
+	  let lookupPath = this._getPath(reject, options.path, options.directory);
       this.NodeFS.stat(lookupPath, (err:any, stats:any) => {
         if(err) {
           reject(err);
