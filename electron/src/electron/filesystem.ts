@@ -40,8 +40,9 @@ export class FilesystemPluginElectron extends WebPlugin implements FilesystemPlu
   }
 
   private _getPath(reject: (error: string) => void, path: string, directory?: string): string {
-	if (path.search(/^file:\/{2,3}/ig) >= 0 || directory === undefined) { // Is a file:// path or no directory present
-		return path;
+	const regex = /^file:\/{2,3}/ig;
+	if (path.search(regex) >= 0 || directory === undefined) { // Is a file:// path or no directory present
+		return path.replace(regex, "");
 	}
 	else {// Not a file:// path
 		if (Object.keys(this.fileLocations).indexOf(directory) === -1) {
