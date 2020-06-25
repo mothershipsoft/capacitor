@@ -20,20 +20,18 @@ buildscript {
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:3.6.1'
-        classpath 'com.novoda:bintray-release:0.9.1'
     }
 }
 
 tasks.withType(Javadoc).all { enabled = false }
 
 apply plugin: 'com.android.library'
-apply plugin: 'com.novoda.bintray-release'
 
 android {
     compileSdkVersion project.hasProperty('compileSdkVersion') ? rootProject.ext.compileSdkVersion : 29
     defaultConfig {
         minSdkVersion project.hasProperty('minSdkVersion') ? rootProject.ext.minSdkVersion : 21
-        targetSdkVersion targetSdkVersion = project.hasProperty('targetSdkVersion') ? rootProject.ext.targetSdkVersion : 29
+        targetSdkVersion project.hasProperty('targetSdkVersion') ? rootProject.ext.targetSdkVersion : 29
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
@@ -72,20 +70,4 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation "org.apache.cordova:framework:$cordovaAndroidVersion"
-}
-
-def version = System.getenv("BINTRAY_PKG_VERSION")
-
-publish {
-    userOrg = 'ionic-team'
-    repoName = 'capacitor'
-    groupId = 'ionic-team'
-    artifactId = 'capacitor-android'
-    if (version != null) {
-        publishVersion = System.getenv("BINTRAY_PKG_VERSION")
-    } else {
-        publishVersion = '0.0.0'
-    }
-    desc = 'Capacitor Android Runtime'
-    website = 'https://github.com/ionic-team/capacitor'
 }

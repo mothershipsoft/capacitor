@@ -20,6 +20,7 @@
   * [Cordova/Ionic Native Plugins](cordova/using-cordova-plugins.md)
   * [Known Incompatible Plugins](cordova/known-incompatible-plugins.md)
 * Guides
+  * [Splash Screens and Icons](guides/splash-screens-icons.md)
   * [Ionic Framework Camera App](guides/ionic-framework-app.md)
   * [Push Notifications - Firebase](guides/push-notifications-firebase.md)
   * [Deep Links](guides/deep-links.md)
@@ -69,6 +70,7 @@
   * [Modals](apis/modals/index.md)
   * [Motion](apis/motion/index.md)
   * [Network](apis/network/index.md)
+  * [Permissions](apis/permissions/index.md)
   * [Push Notifications](apis/push-notifications/index.md)
   * [Share](apis/share/index.md)
   * [Splash Screen](apis/splash-screen/index.md)

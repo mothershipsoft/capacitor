@@ -37,19 +37,9 @@ Recommended change:
 
 * Update `strings.xml` file inside `android/app/src/main/res/values/` folder with [this change](https://github.com/ionic-team/capacitor/commit/ed6647b35a8da08d26a7ff13cc9f4fd918b923a0#diff-15c65f143d85c95277307da1bdd0528e)
 
-### From <= 1.5.1 to 2.0.0-beta.0
+### From <= 1.5.1 to 2.0.0
 
-Since Capacitor 2.0 is still beta, install it using `next` tag
-
-```bash
-npm install @capacitor/cli@next
-npm install @capacitor/core@next
-npm install @capacitor/android@next
-npx cap sync android
-npx cap open android
-```
-
-Mandatory changes:
+Mandatory change:
 
 * Use Android X
 
@@ -57,18 +47,20 @@ Mandatory changes:
 
   From Android Studio do `Refactor -> Migrate to AndroidX`. Then click on `Migrate` button and finally click on `Do Refactor`.
 
-  If using Cordova plugins that don't use Android X yet, you can use [jetifier](https://www.npmjs.com/package/jetifier) tool to patch them.
+  If using Cordova or Capacitor plugins that don't use Android X yet, you can use [jetifier](https://www.npmjs.com/package/jetifier) tool to patch them.
 
-  ```bash
-  npm install jetifier
-  npx jetifier
-  ```
+```bash
+npm install jetifier
+npx jetifier
+```
 
   To run it automatically after every package install, add `"postinstall": "jetifier"` in the `package.json`.
 
+Recommended changes:
+
 * Create common variables
 
-  Create a `variables.gradle` file inside `android` folder with this content
+  Create a `android/variables.gradle` file with this content
 
   ```
   ext {
@@ -89,14 +81,11 @@ Mandatory changes:
   }
   ```
 
-  In `android/build.gradle` file, add `apply from: "variables.gradle"`
-
-
-Recommended changes:
+  In `android/build.gradle` file, add `apply from: "variables.gradle"` as shown [here](https://github.com/ionic-team/capacitor/blob/master/android-template/build.gradle#L18).
 
 * Use common variables
 
-  Since we have common variables, it's recommended to update your project to use them. In the `android/app/build.gradle` file, change:
+  If you created the `variables.gradle` file, update your project to use them. In the `android/app/build.gradle` file, change:
   - `compileSdkVersion 28` to `compileSdkVersion rootProject.ext.compileSdkVersion`
   - `minSdkVersion 21` to `minSdkVersion rootProject.ext.minSdkVersion`
   - `targetSdkVersion 28` to `targetSdkVersion rootProject.ext.targetSdkVersion`
@@ -113,7 +102,7 @@ Recommended changes:
 
   You can also manually update the Gradle plugin and Gradle.
   
-  To manually update Gradle plugin, edit `android/build.gradle` file. Change `classpath 'com.android.tools.build:gradle:3.3.2'` to `classpath 'com.android.tools.build:gradle:3.6.1'`. Change `gradle-4.10.1-all.zip` to `gradle-5.6.4-all.zip`.
+  To manually update Gradle plugin, edit `android/build.gradle` file. Change `classpath 'com.android.tools.build:gradle:3.3.2'` to `classpath 'com.android.tools.build:gradle:3.6.1'`.
 
   To manually update Gradle, edit `android/gradle/wrapper/gradle-wrapper.properties`. Change `gradle-4.10.1-all.zip` to `gradle-5.6.4-all.zip`.
 
@@ -121,4 +110,12 @@ Recommended changes:
 
   In `android/build.gradle` file, change `classpath 'com.google.gms:google-services:4.2.0'` to `classpath 'com.google.gms:google-services:4.3.3'`.
 
-For API changes check the [Release Notes](https://github.com/ionic-team/capacitor/releases/tag/2.0.0-beta.0)
+* Change configChanges to avoid app restarts
+
+  In `android/app/src/main/AndroidManifest.xml` file, add `|smallestScreenSize|screenLayout|uiMode` in the activity `android:configChanges` attribute.
+
+* Add caches folder to FileProvider file paths to avoid permission error on editing gallery images.
+
+  In `android/app/src/main/res/xml/file_paths.xml` add `<cache-path name="my_cache_images" path="." />`.
+
+For API changes check the [Release Notes](https://github.com/ionic-team/capacitor/releases/tag/2.0.0)
