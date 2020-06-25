@@ -9,7 +9,9 @@ enum BridgeError: Error {
 
 @objc public class CAPBridge : NSObject {
 
+  var tmpWindow: UIWindow?
   @objc public static let statusBarTappedNotification = Notification(name: Notification.Name(rawValue: "statusBarTappedNotification"))
+  @objc public static let tmpVCAppeared = Notification(name: Notification.Name(rawValue: "tmpViewControllerAppeared"))
   public static var CAP_SITE = "https://capacitor.ionicframework.com/"
   public static var CAP_FILE_START = "/_capacitor_file_"
   public static let CAP_DEFAULT_SCHEME = "capacitor"
@@ -63,6 +65,9 @@ enum BridgeError: Error {
     registerPlugins()
     setupCordovaCompatibility()
     bindObservers()
+    NotificationCenter.default.addObserver(forName: CAPBridge.tmpVCAppeared.name, object: .none, queue: .none) { _ in
+      self.tmpWindow = nil
+    }
   }
   
   public func setStatusBarVisible(_ isStatusBarVisible: Bool) {
@@ -587,6 +592,26 @@ enum BridgeError: Error {
 
   public func getLocalUrl() -> String {
     return localUrl!
+  }
+
+  @objc public func presentVC(_ viewControllerToPresent: UIViewController, animated flag: Bool, completion: (() -> Void)? = nil) {
+    if viewControllerToPresent.modalPresentationStyle == .popover {
+      self.viewController.present(viewControllerToPresent, animated: flag, completion: completion)
+    } else {
+      self.tmpWindow = UIWindow.init(frame: UIScreen.main.bounds)
+      self.tmpWindow!.rootViewController = TmpViewController.init()
+      self.tmpWindow!.makeKeyAndVisible()
+      self.tmpWindow!.rootViewController!.present(viewControllerToPresent, animated: flag, completion: completion)
+    }
+  }
+
+  @objc public func dismissVC(animated flag: Bool, completion: (() -> Void)? = nil) {
+    if self.tmpWindow == nil {
+      self.viewController.dismiss(animated: flag, completion: completion)
+    } else {
+      self.tmpWindow!.rootViewController!.dismiss(animated: flag, completion: completion)
+      self.tmpWindow = nil
+    }
   }
 
 }

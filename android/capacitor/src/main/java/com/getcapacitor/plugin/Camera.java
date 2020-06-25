@@ -8,16 +8,15 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Base64;
-import android.util.Log;
 
 import androidx.core.content.FileProvider;
 
 import com.getcapacitor.Dialogs;
 import com.getcapacitor.FileUtils;
 import com.getcapacitor.JSObject;
+import com.getcapacitor.Logger;
 import com.getcapacitor.NativePlugin;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -68,6 +67,7 @@ public class Camera extends Plugin {
   private static final String IMAGE_GALLERY_SAVE_ERROR = "Unable to save the image in the gallery";
 
   private String imageFileSavePath;
+  private String imageEditedFileSavePath;
   private Uri imageFileUri;
   private boolean isEdited = false;
 
@@ -103,10 +103,13 @@ public class Camera extends Plugin {
 
   private void showPrompt(final PluginCall call) {
     // We have all necessary permissions, open the camera
+    String promptLabelPhoto = call.getString("promptLabelPhoto", "From Photos");
+    String promptLabelPicture = call.getString("promptLabelPicture", "Take Picture");
+
     JSObject fromPhotos = new JSObject();
-    fromPhotos.put("title", "From Photos");
+    fromPhotos.put("title", promptLabelPhoto);
     JSObject takePicture = new JSObject();
-    takePicture.put("title", "Take Picture");
+    takePicture.put("title", promptLabelPicture);
     Object[] options = new Object[] {
       fromPhotos,
       takePicture
@@ -116,10 +119,17 @@ public class Camera extends Plugin {
       @Override
       public void onSelect(int index) {
         if (index == 0) {
+          settings.setSource(CameraSource.PHOTOS);
           openPhotos(call);
         } else if (index == 1) {
+          settings.setSource(CameraSource.CAMERA);
           openCamera(call);
         }
+      }
+    }, new Dialogs.OnCancelListener() {
+      @Override
+      public void onCancel() {
+        call.error("User cancelled photos app");
       }
     });
   }
@@ -185,7 +195,7 @@ public class Camera extends Plugin {
     try {
       return CameraResultType.valueOf(resultType.toUpperCase());
     } catch (IllegalArgumentException ex) {
-      Log.d(getLogTag(), "Invalid result type \"" + resultType + "\", defaulting to base64");
+      Logger.debug(getLogTag(), "Invalid result type \"" + resultType + "\", defaulting to base64");
       return CameraResultType.BASE64;
     }
   }
@@ -223,17 +233,9 @@ public class Camera extends Plugin {
   }
 
   public void processCameraImage(PluginCall call) {
-    boolean saveToGallery = call.getBoolean("saveToGallery", CameraSettings.DEFAULT_SAVE_IMAGE_TO_GALLERY);
     if(imageFileSavePath == null) {
       call.error(IMAGE_PROCESS_NO_FILE_ERROR);
       return;
-    }
-    if (saveToGallery) {
-      try {
-        MediaStore.Images.Media.insertImage(getActivity().getContentResolver(), imageFileSavePath, "", "");
-      } catch (FileNotFoundException e) {
-        Log.e(getLogTag(), IMAGE_GALLERY_SAVE_ERROR, e);
-      }
     }
     // Load the image as a Bitmap
     File f = new File(imageFileSavePath);
@@ -278,7 +280,7 @@ public class Camera extends Plugin {
         try {
           imageStream.close();
         } catch (IOException e) {
-          Log.e(getLogTag(), UNABLE_TO_PROCESS_IMAGE, e);
+          Logger.error(getLogTag(), UNABLE_TO_PROCESS_IMAGE, e);
         }
       }
     }
@@ -331,8 +333,18 @@ public class Camera extends Plugin {
     bitmap.compress(Bitmap.CompressFormat.JPEG, settings.getQuality(), bitmapOutputStream);
 
     if (settings.isAllowEditing() && !isEdited) {
-      editImage(call, u);
+      editImage(call, bitmap, u, bitmapOutputStream);
       return;
+    }
+
+    boolean saveToGallery = call.getBoolean("saveToGallery", CameraSettings.DEFAULT_SAVE_IMAGE_TO_GALLERY);
+    if (saveToGallery && (imageEditedFileSavePath != null || imageFileSavePath != null)) {
+      try {
+        String fileToSave = imageEditedFileSavePath != null ? imageEditedFileSavePath : imageFileSavePath;
+        MediaStore.Images.Media.insertImage(getActivity().getContentResolver(), fileToSave, "", "");
+      } catch (FileNotFoundException e) {
+        Logger.error(getLogTag(), IMAGE_GALLERY_SAVE_ERROR, e);
+      }
     }
 
     if (settings.getResultType() == CameraResultType.BASE64) {
@@ -348,31 +360,40 @@ public class Camera extends Plugin {
     // Result returned, clear stored paths
     imageFileSavePath = null;
     imageFileUri = null;
+    imageEditedFileSavePath = null;
   }
 
   private void returnFileURI(PluginCall call, ExifWrapper exif, Bitmap bitmap, Uri u, ByteArrayOutputStream bitmapOutputStream) {
-    ByteArrayInputStream bis = null;
-
-    try {
-      bis = new ByteArrayInputStream(bitmapOutputStream.toByteArray());
-      Uri newUri = saveTemporaryImage(bitmap, u, bis);
+    Uri newUri = getTempImage(bitmap, u, bitmapOutputStream);
+    if (newUri != null) {
       JSObject ret = new JSObject();
       ret.put("format", "jpeg");
       ret.put("exif", exif.toJson());
       ret.put("path", newUri.toString());
       ret.put("webPath", FileUtils.getPortablePath(getContext(), bridge.getLocalUrl(), newUri));
       call.resolve(ret);
+    } else {
+      call.reject(UNABLE_TO_PROCESS_IMAGE);
+    }
+  }
+
+  private Uri getTempImage(Bitmap bitmap, Uri u, ByteArrayOutputStream bitmapOutputStream) {
+    ByteArrayInputStream bis = null;
+    Uri newUri = null;
+    try {
+      bis = new ByteArrayInputStream(bitmapOutputStream.toByteArray());
+      newUri = saveTemporaryImage(bitmap, u, bis);
     } catch (IOException ex) {
-      call.reject(UNABLE_TO_PROCESS_IMAGE, ex);
     } finally {
       if (bis != null) {
         try {
           bis.close();
         } catch (IOException e) {
-          Log.e(getLogTag(), UNABLE_TO_PROCESS_IMAGE, e);
+          Logger.error(getLogTag(), UNABLE_TO_PROCESS_IMAGE, e);
         }
       }
     }
+    return newUri;
   }
 
   /**
@@ -429,10 +450,10 @@ public class Camera extends Plugin {
   protected void handleRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
     super.handleRequestPermissionsResult(requestCode, permissions, grantResults);
 
-    Log.d(getLogTag(),"handling request perms result");
+    Logger.debug(getLogTag(),"handling request perms result");
 
     if (getSavedCall() == null) {
-      Log.d(getLogTag(),"No stored plugin call for permissions request result");
+      Logger.debug(getLogTag(),"No stored plugin call for permissions request result");
       return;
     }
 
@@ -442,7 +463,7 @@ public class Camera extends Plugin {
       int result = grantResults[i];
       String perm = permissions[i];
       if(result == PackageManager.PERMISSION_DENIED) {
-        Log.d(getLogTag(), "User denied camera permission: " + perm);
+        Logger.debug(getLogTag(), "User denied camera permission: " + perm);
         savedCall.error(PERMISSION_DENIED_ERROR);
         return;
       }
@@ -473,27 +494,50 @@ public class Camera extends Plugin {
       isEdited = true;
       processPickedImage(savedCall, data);
     } else if (resultCode == Activity.RESULT_CANCELED && imageFileSavePath != null) {
+      imageEditedFileSavePath = null;
       isEdited = true;
       processCameraImage(savedCall);
     }
   }
 
-  private void editImage(PluginCall call, Uri uri) {
+  private void editImage(PluginCall call, Bitmap bitmap, Uri uri, ByteArrayOutputStream bitmapOutputStream) {
+    Uri origPhotoUri = uri;
+    if (imageFileUri != null) {
+      origPhotoUri = imageFileUri;
+    }
     try {
-      Uri origPhotoUri = uri;
-      if (imageFileUri != null) {
-        origPhotoUri = imageFileUri;
+      Intent editIntent = createEditIntent(origPhotoUri, false);
+      startActivityForResult(call, editIntent, REQUEST_IMAGE_EDIT);
+    } catch (SecurityException ex) {
+      Uri tempImage = getTempImage(bitmap, uri, bitmapOutputStream);
+      Intent editIntent = createEditIntent(tempImage, true);
+      if (editIntent != null) {
+        startActivityForResult(call, editIntent, REQUEST_IMAGE_EDIT);
+      } else {
+        call.error(IMAGE_EDIT_ERROR);
+      }
+    } catch (Exception ex) {
+      call.error(IMAGE_EDIT_ERROR, ex);
+    }
+  }
+
+  private Intent createEditIntent(Uri origPhotoUri, boolean expose) {
+    Uri editUri = origPhotoUri;
+    try {
+      if (expose) {
+        editUri = FileProvider.getUriForFile(getActivity(), getContext().getPackageName() + ".fileprovider", new File(origPhotoUri.getPath()));
       }
       Intent editIntent = new Intent(Intent.ACTION_EDIT);
-      editIntent.setDataAndType(origPhotoUri, "image/*");
+      editIntent.setDataAndType(editUri, "image/*");
       File editedFile = CameraUtils.createImageFile(getActivity());
+      imageEditedFileSavePath = editedFile.getAbsolutePath();
       Uri editedUri = Uri.fromFile(editedFile);
       editIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
       editIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
       editIntent.putExtra(MediaStore.EXTRA_OUTPUT, editedUri);
-      startActivityForResult(call, editIntent, REQUEST_IMAGE_EDIT);
+      return editIntent;
     } catch (Exception ex) {
-      call.error(IMAGE_EDIT_ERROR, ex);
+      return null;
     }
   }
 
